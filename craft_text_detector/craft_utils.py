@@ -111,11 +111,11 @@ def getDetBoxes_core(textmap, linkmap, text_threshold, link_threshold, low_text)
 
     text_score_comb = np.clip(text_score + link_score, 0, 1)
     nLabels, labels, stats, centroids = cv2.connectedComponentsWithStats(
-        text_score_comb.astype(np.uint8), connectivity=4
-    )
+        text_score_comb.astype(np.uint8), connectivity=4)
 
     det = []
     mapper = []
+    num_characters = []
     for k in range(1, nLabels):
         # size filtering
         size = stats[k, cv2.CC_STAT_AREA]
@@ -132,7 +132,12 @@ def getDetBoxes_core(textmap, linkmap, text_threshold, link_threshold, low_text)
 
         # remove link area
         segmap[np.logical_and(link_score == 1, text_score == 0)] = 0
-
+        
+        # count number of characters in word segementation
+        word_chars, word_label, waord_stats, word_centroid = cv2.connectedComponentsWithStats(
+            segmap.astype(np.uint8), connectivity=4)
+        num_characters.append(word_chars)
+        
         x, y = stats[k, cv2.CC_STAT_LEFT], stats[k, cv2.CC_STAT_TOP]
         w, h = stats[k, cv2.CC_STAT_WIDTH], stats[k, cv2.CC_STAT_HEIGHT]
         niter = int(math.sqrt(size * min(w, h) / (w * h)) * 2)
@@ -171,7 +176,7 @@ def getDetBoxes_core(textmap, linkmap, text_threshold, link_threshold, low_text)
         det.append(box)
         mapper.append(k)
 
-    return det, labels, mapper
+    return det, labels, mapper, num_characters
 
 
 def getPoly_core(boxes, labels, mapper, linkmap):
@@ -363,7 +368,7 @@ def getPoly_core(boxes, labels, mapper, linkmap):
 
 
 def getDetBoxes(textmap, linkmap, text_threshold, link_threshold, low_text, poly=False):
-    boxes, labels, mapper = getDetBoxes_core(
+    boxes, labels, mapper, num_characters = getDetBoxes_core(
         textmap, linkmap, text_threshold, link_threshold, low_text
     )
 
@@ -371,8 +376,8 @@ def getDetBoxes(textmap, linkmap, text_threshold, link_threshold, low_text, poly
         polys = getPoly_core(boxes, labels, mapper, linkmap)
     else:
         polys = [None] * len(boxes)
-
-    return boxes, polys
+    return_dict = {"boxes": boxes, "labels": labels, "mapper": mapper, "num_characters": num_characters,"polys": polys}
+    return return_dict
 
 
 def adjustResultCoordinates(polys, ratio_w, ratio_h, ratio_net=2):
