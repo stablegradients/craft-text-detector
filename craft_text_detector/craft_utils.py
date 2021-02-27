@@ -2,6 +2,7 @@ import math
 import os
 from collections import OrderedDict
 from pathlib import Path
+import math
 
 import cv2
 import numpy as np
@@ -100,6 +101,23 @@ def load_refinenet_model(cuda: bool = False):
 
 
 def getDetBoxes_core(textmap, linkmap, text_threshold, link_threshold, low_text):
+    def compare_boxes(box1, box2, size1, size2):
+        '''
+        Given 2 4X2 numpy array containing [[x,y]..] points returns True if they are next to each other else zero 
+        '''
+        if  abs(1 - (size1/size2)) < 0.2:
+            for i in range(4):
+                for j in range(4):
+                    for k in range(4):
+                        for l in range(4):
+                            slope1 = (box1[i, 0]-box1[j, 0])/(box1[i, 1]-box1[j, 1] if (box1[i, 1]-box1[j, 1]) != 0 else 0.001)
+                            slope2 = (box1[k, 0]-box1[l, 0])/(box1[k, 1]-box1[l, 1] if (box1[k, 1]-box1[l, 1]) != 0 else 0.001)
+
+                            centroid1 = np.mean((box1[i,:] + box1[j,:])/2.0, axis=0)
+                            centroid2 = np.mean((box1[k,:] + box1[l,:])/2.0, axis=0)
+                            if abs(slope1 - slope2) < 0.1 and np.linalg.norm(centroid1 - centroid2) < 5 and centroid1[1] < centroid2[1]:
+                                return True 
+            return False
     # prepare data
     linkmap = linkmap.copy()
     textmap = textmap.copy()
@@ -116,6 +134,8 @@ def getDetBoxes_core(textmap, linkmap, text_threshold, link_threshold, low_text)
     det = []
     mapper = []
     num_characters = []
+    avg_character_sizes = []
+    word_id = []
     for k in range(1, nLabels):
         # size filtering
         size = stats[k, cv2.CC_STAT_AREA]
@@ -134,9 +154,12 @@ def getDetBoxes_core(textmap, linkmap, text_threshold, link_threshold, low_text)
         segmap[np.logical_and(link_score == 1, text_score == 0)] = 0
         
         # count number of characters in word segementation
-        word_chars, word_label, waord_stats, word_centroid = cv2.connectedComponentsWithStats(
+        word_chars, word_label, word_stats, word_centroid = cv2.connectedComponentsWithStats(
             segmap.astype(np.uint8), connectivity=4)
         num_characters.append(word_chars)
+
+        avg_character_size = np.mean(word_stats[:, 4])
+        avg_character_sizes.append(avg_character_size)
         
         x, y = stats[k, cv2.CC_STAT_LEFT], stats[k, cv2.CC_STAT_TOP]
         w, h = stats[k, cv2.CC_STAT_WIDTH], stats[k, cv2.CC_STAT_HEIGHT]
@@ -175,8 +198,17 @@ def getDetBoxes_core(textmap, linkmap, text_threshold, link_threshold, low_text)
 
         det.append(box)
         mapper.append(k)
+    for id1, (box1, size1) in enumerate(zip(det, avg_character_sizes)):
+        word = id1
+        for id2, (box2, size2) in enumerate(zip(det, avg_character_sizes)):
+            if box1 == box2:
+                pass
+            else:
+                if compare_boxes(box1, box2, size1, size2):
+                    word = id2
+            word_id.append(word)
 
-    return det, labels, mapper, num_characters
+    return det, labels, mapper, num_characters, avg_character_sizes, word_id
 
 
 def getPoly_core(boxes, labels, mapper, linkmap):
@@ -368,7 +400,7 @@ def getPoly_core(boxes, labels, mapper, linkmap):
 
 
 def getDetBoxes(textmap, linkmap, text_threshold, link_threshold, low_text, poly=False):
-    boxes, labels, mapper, num_characters = getDetBoxes_core(
+    boxes, labels, mapper, num_characters, avg_character_size, word_id = getDetBoxes_core(
         textmap, linkmap, text_threshold, link_threshold, low_text
     )
 
@@ -376,7 +408,8 @@ def getDetBoxes(textmap, linkmap, text_threshold, link_threshold, low_text, poly
         polys = getPoly_core(boxes, labels, mapper, linkmap)
     else:
         polys = [None] * len(boxes)
-    return_dict = {"boxes": boxes, "labels": labels, "mapper": mapper, "num_characters": num_characters,"polys": polys}
+    return_dict = {"boxes": boxes, "labels": labels, "mapper": mapper, "num_characters": num_characters,\
+    "average_character_size": avg_character_size,"word_id": word_id, "polys": polys}
     return return_dict
 
 
