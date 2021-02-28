@@ -34,7 +34,7 @@ setuptools.setup(
     description="Fast and accurate text detection library built on CRAFT implementation",
     long_description=get_long_description(),
     long_description_content_type="text/markdown",
-    url="https://github.com/fcakyon/craft_text_detector",
+    url="https://github.com/Shrini97/craft-text-detector.git",
     packages=setuptools.find_packages(exclude=["tests"]),
     install_requires=get_requirements(),
     python_requires='>=3.5',
