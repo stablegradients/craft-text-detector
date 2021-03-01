@@ -2,6 +2,7 @@ import math
 import os
 from collections import OrderedDict
 from pathlib import Path
+from itertools import permutations
 import math
 
 import cv2
@@ -101,22 +102,28 @@ def load_refinenet_model(cuda: bool = False):
 
 
 def getDetBoxes_core(textmap, linkmap, text_threshold, link_threshold, low_text):
-    def compare_boxes(box1, box2, size1, size2):
+    def compare_boxes(box1, box2, slope_thresh = 0.1, min_edge_distance = 10):
         '''
         Given 2 4X2 numpy array containing [[x,y]..] points returns True if they are next to each other else zero 
         '''
-        if  abs(1 - (size1/size2)) < 0.2:
-            for i in range(4):
-                for j in range(4):
-                    for k in range(4):
-                        for l in range(4):
-                            slope1 = (box1[i, 0]-box1[j, 0])/(box1[i, 1]-box1[j, 1] if (box1[i, 1]-box1[j, 1]) != 0 else 0.001)
-                            slope2 = (box1[k, 0]-box1[l, 0])/(box1[k, 1]-box1[l, 1] if (box1[k, 1]-box1[l, 1]) != 0 else 0.001)
-
-                            centroid1 = np.mean((box1[i,:] + box1[j,:])/2.0, axis=0)
-                            centroid2 = np.mean((box1[k,:] + box1[l,:])/2.0, axis=0)
-                            if abs(slope1 - slope2) < 0.1 and np.linalg.norm(centroid1 - centroid2) < 5 and centroid1[1] < centroid2[1]:
-                                return True 
+        boxcentroid1 = np.mean(box1, axis=0)
+        boxcentroid2 = np.mean(box2, axis=0)
+        
+        if boxcentroid1[1] < boxcentroid2[1]:
+            for i, j in permutations(range(4), 2):
+                for k,l in permutations(range(4), 2):
+                    slope1 = (box1[i, 1]-box1[j, 1])/(box2[i, 0]-box2[j, 0]\
+                        if (box2[i, 0]-box2[j, 0]) != 0 else 0.001)
+                    slope2 = (box1[k, 1]-box1[l, 1])/(box2[k, 0]-box2[l, 0]\
+                        if (box2[k, 0]-box2[l, 0]) != 0 else 0.001)
+                    
+                    linecentroid1 = (box1[i,:] + box1[j,:])/2
+                    linecentroid2 = (box2[j,:] + box2[k,:])/2
+                        
+                    if abs(slope1 - slope2) < slope_thresh and\
+                        np.sum(abs((linecentroid1 - linecentroid2))) < min_edge_distance:
+                        return True
+        else:
             return False
     # prepare data
     linkmap = linkmap.copy()
@@ -135,7 +142,6 @@ def getDetBoxes_core(textmap, linkmap, text_threshold, link_threshold, low_text)
     mapper = []
     num_characters = []
     avg_character_sizes = []
-    word_id = []
     for k in range(1, nLabels):
         # size filtering
         size = stats[k, cv2.CC_STAT_AREA]
@@ -198,15 +204,15 @@ def getDetBoxes_core(textmap, linkmap, text_threshold, link_threshold, low_text)
 
         det.append(box)
         mapper.append(k)
+
+    word_id = [-1]*len(det)
     for id1, (box1, size1) in enumerate(zip(det, avg_character_sizes)):
-        word = id1
         for id2, (box2, size2) in enumerate(zip(det, avg_character_sizes)):
-            if box1 == box2:
+            if id1 == id2:
                 pass
             else:
-                if compare_boxes(box1, box2, size1, size2):
-                    word = id2
-            word_id.append(word)
+                if compare_boxes(box1, box2):
+                    word_id[id1] = id2
 
     return det, labels, mapper, num_characters, avg_character_sizes, word_id
 

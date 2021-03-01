@@ -81,7 +81,7 @@ def get_prediction(
     # Post-processing
     box_dict = craft_utils.getDetBoxes(
         score_text, score_link, text_threshold, link_threshold, low_text, poly)
-    boxes, polys, num_characters  = box_dict["boxes"], box_dict["polys"], box_dict["num_characters"]
+    boxes, polys, num_characters, word_id  = box_dict["boxes"], box_dict["polys"], box_dict["num_characters"], box_dict["word_id"]
     # coordinate adjustment
     boxes = craft_utils.adjustResultCoordinates(boxes, ratio_w, ratio_h)
     polys = craft_utils.adjustResultCoordinates(polys, ratio_w, ratio_h)
@@ -122,6 +122,7 @@ def get_prediction(
         "boxes": boxes,
         "boxes_as_ratios": boxes_as_ratio,
         "num_characters": num_characters,
+        "word_id": word_id,
         "polys": polys,
         "polys_as_ratios": polys_as_ratio,
         "heatmaps": {
