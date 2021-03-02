@@ -167,7 +167,7 @@ class TestCraftTextDetector(unittest.TestCase):
         '''
         
         def combine_images(img1, img2):
-            h_min = min(img1.shape[0], img2.shape[0]) 
+            h_min = max(img1.shape[0], img2.shape[0]) 
         
             # image resizing 
             img_list = [img1, img2]  
