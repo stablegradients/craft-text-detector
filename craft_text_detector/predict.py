@@ -79,9 +79,10 @@ def get_prediction(
     t0 = time.time()
 
     # Post-processing
-    box_dict = craft_utils.getDetBoxes(
-        score_text, score_link, text_threshold, link_threshold, low_text, poly)
-    boxes, polys, num_characters, word_id  = box_dict["boxes"], box_dict["polys"], box_dict["num_characters"], box_dict["word_id"]
+    box_dict = craft_utils.getDetBoxes(img_resized, score_text, score_link, text_threshold, link_threshold, low_text, poly)
+    boxes, polys, num_characters, word_id, text_crops, num_combined_characters  =\
+        box_dict["boxes"], box_dict["polys"], box_dict["num_characters"], box_dict["word_id"],\
+        box_dict["text_crops"], box_dict["num_combined_characters"]
     # coordinate adjustment
     boxes = craft_utils.adjustResultCoordinates(boxes, ratio_w, ratio_h)
     polys = craft_utils.adjustResultCoordinates(polys, ratio_w, ratio_h)
@@ -130,4 +131,6 @@ def get_prediction(
             "link_score_heatmap": link_score_heatmap,
         },
         "times": times,
+        "text_crops": text_crops,
+        "num_combined_characters": num_combined_characters
     }
