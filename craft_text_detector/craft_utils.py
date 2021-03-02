@@ -7,6 +7,7 @@ import math
 
 import cv2
 import numpy as np
+from numpy.core.fromnumeric import amin
 
 import craft_text_detector.file_utils as file_utils
 import craft_text_detector.torch_utils as torch_utils
@@ -125,6 +126,36 @@ def getDetBoxes_core(textmap, linkmap, text_threshold, link_threshold, low_text)
                         return True
         else:
             return False
+    
+    def d(cord1, cord2):
+        return np.linalg.norm(cord1-cord2)
+
+    def sort_box(box):
+        '''
+        Returns the bounding box sorted with BL->BR->TR->TL sequence
+        given a 2d 4X2 list of vertices of a cyclic bbox
+        '''
+        '''
+        x1, y1 = tuple(box[0, :])
+        x2, y2 = tuple(box[1, :])
+        x3, y3 = tuple(box[2, :])
+
+        if ((x2-x1)*(y3-y1) + (y1-y2)*(x3 - x1)) < 0:
+            box.reverse()
+        else:   
+            pass
+        '''
+        aymin = np.argmin(box[:,1])
+        tl=0 
+        if d(box[aymin,:], box[(aymin+1)%4,:]) > d(box[(aymin+2)%4, :], box[(aymin+1)%4,:]):
+            # aymin is top left
+            tl = np.argmin(box[:,1])
+        else:
+            tl = (np.argmin(box[:,1]) -1)%4
+            # axmin is top right
+        box = box[tl:,:].tolist() + box[:tl,:].tolist()
+        return np.array(box).astype(np.float32)
+
     # prepare data
     linkmap = linkmap.copy()
     textmap = textmap.copy()
@@ -202,7 +233,7 @@ def getDetBoxes_core(textmap, linkmap, text_threshold, link_threshold, low_text)
         box = np.roll(box, 4 - startidx, 0)
         box = np.array(box)
 
-        det.append(box)
+        det.append(sort_box(box))
         mapper.append(k)
 
     word_id = [-1]*len(det)
@@ -213,7 +244,6 @@ def getDetBoxes_core(textmap, linkmap, text_threshold, link_threshold, low_text)
             else:
                 if compare_boxes(box1, box2):
                     word_id[id1] = id2
-
     return det, labels, mapper, num_characters, avg_character_sizes, word_id
 
 
