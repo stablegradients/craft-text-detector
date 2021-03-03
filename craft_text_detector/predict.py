@@ -8,6 +8,65 @@ import craft_text_detector.craft_utils as craft_utils
 import craft_text_detector.image_utils as image_utils
 import craft_text_detector.torch_utils as torch_utils
 
+def combine_images(img1, img2):
+    '''
+    Returns the horizontally stitched images given 2 images
+    Args:
+        img1: image to be stitched on the left
+        img2: image to be stitched on the right
+    Return:
+        returns a 3 channnel cv2 image which is the horizontally stitched image
+        with the height equal to the min of the 2 src images
+    '''
+    img_list = [img1, img2]  
+    h_min = max([x.shape[0] for x in img_list])
+
+    # image resizing 
+    im_list_resize = [cv2.resize(img, (int(img.shape[1] * h_min / img.shape[0]), h_min),\
+        interpolation = cv2.INTER_CUBIC)  for img in img_list]
+    return cv2.hconcat(im_list_resize) 
+
+def warp_image(box, image):
+    '''
+    Returns the straightened image crop when given 
+    the corresponding 4pt box points
+    Args:
+        box   (np.ndarray): a 4X2 nummy float32 array containing the 4 coordinates in 
+            TL->TR->BR->BL sequence in (x,y) order
+        image (np.ndarray): a 3 channel cv2 array whose 4 pt crop needs to be transformed
+    Returns:
+        Returns a 3 channel cv2 image of the straightened box marked in image.
+    '''
+    box = box.astype(np.float32)
+    w, h = (int(np.linalg.norm(box[0] - box[1]) + 1),int(np.linalg.norm(box[1] - box[2]) + 1))
+    tar = np.float32([[0, 0], [w, 0], [w, h], [0, h]])
+    M = cv2.getPerspectiveTransform(box, tar)
+    word_crop = cv2.warpPerspective(image, M, (w, h), flags=cv2.INTER_NEAREST)
+    return word_crop
+
+def multiline_crops(boxes, image, num_characters, word_id):
+    '''
+    Returns a list of  single line and permutations of 2 line stitched crops
+    Args:
+        boxes (List): A list of box arrays
+        image (np.ndarray): a 3 channel cv2 image from which all the text need to be processed
+        num_characters (List): a list containing the estimated number of characters in each crop
+        word_id ()  
+    '''
+    text_crops = []
+    num_combined_characters = []
+    for i, (box, num_char)  in enumerate(zip(boxes, num_characters)):
+        word_crop = warp_image(box, image)
+        if word_id[i] == -1:
+            text_crops.append(word_crop)
+            num_combined_characters.append(num_char)
+        else:
+            box_ = boxes[word_id[i]]
+            word_crop_ = warp_image(box_, image)
+            text_crops.append(combine_images(word_crop, word_crop_))
+            num_char_ = num_characters[i]
+            num_combined_characters.append(num_char+num_char_)
+    return text_crops, num_combined_characters
 
 def get_prediction(
     image,
@@ -79,10 +138,9 @@ def get_prediction(
     t0 = time.time()
 
     # Post-processing
-    box_dict = craft_utils.getDetBoxes(img_resized, score_text, score_link, text_threshold, link_threshold, low_text, poly)
-    boxes, polys, num_characters, word_id, text_crops, num_combined_characters  =\
-        box_dict["boxes"], box_dict["polys"], box_dict["num_characters"], box_dict["word_id"],\
-        box_dict["text_crops"], box_dict["num_combined_characters"]
+    box_dict = craft_utils.getDetBoxes(score_text, score_link, text_threshold, link_threshold, low_text, poly)
+    boxes, polys, num_characters, word_id = box_dict["boxes"], box_dict["polys"],\
+        box_dict["num_characters"], box_dict["word_id"]
     # coordinate adjustment
     boxes = craft_utils.adjustResultCoordinates(boxes, ratio_w, ratio_h)
     polys = craft_utils.adjustResultCoordinates(polys, ratio_w, ratio_h)
@@ -118,7 +176,7 @@ def get_prediction(
         "refinenet_time": refinenet_time,
         "postprocess_time": postprocess_time,
     }
-
+    text_crops, num_combined_characters = multiline_crops(boxes, image, num_characters, word_id)
     return {
         "boxes": boxes,
         "boxes_as_ratios": boxes_as_ratio,

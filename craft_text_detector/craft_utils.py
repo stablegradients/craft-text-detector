@@ -435,52 +435,16 @@ def getPoly_core(boxes, labels, mapper, linkmap):
     return polys
 
 
-def getDetBoxes(image, textmap, linkmap, text_threshold, link_threshold, low_text, poly=False):
+def getDetBoxes(textmap, linkmap, text_threshold, link_threshold, low_text, poly=False):
     boxes, labels, mapper, num_characters, avg_character_size, word_id = getDetBoxes_core(
         textmap, linkmap, text_threshold, link_threshold, low_text
     )
-
     if poly:
         polys = getPoly_core(boxes, labels, mapper, linkmap)
     else:
         polys = [None] * len(boxes)
     return_dict = {"boxes": boxes, "labels": labels, "mapper": mapper, "num_characters": num_characters,\
     "average_character_size": avg_character_size,"word_id": word_id, "polys": polys}
-    text_crops = []
-    num_combined_characters = []
-    def combine_images(img1, img2):
-        h_min = min(img1.shape[0], img2.shape[0]) 
-      
-        # image resizing 
-        img_list = [img1, img2]  
-        im_list_resize = [cv2.resize(img, (int(img.shape[1] * h_min / img.shape[0]), h_min), interpolation = cv2.INTER_CUBIC)  for img in img_list]
-        return cv2.hconcat(im_list_resize) 
-
-    def warp_image(box):
-        box = 1.31*box.astype(np.float32)
-        #print(box)
-        w, h = (int(np.linalg.norm(box[0] - box[1]) + 1),int(np.linalg.norm(box[1] - box[2]) + 1))
-        #print(w, h)
-        #print("-"*20)
-        print(image.shape)
-        tar = np.float32([[0, 0], [w, 0], [w, h], [0, h]])
-        M = cv2.getPerspectiveTransform(box, tar)
-        word_crop = cv2.warpPerspective(image, M, (w, h), flags=cv2.INTER_NEAREST)
-        return word_crop
-
-    for i, (box, num_char)  in enumerate(zip(boxes, num_characters)):
-        word_crop = warp_image(box)
-        if word_id[i] == -1:
-            text_crops.append(word_crop)
-            num_combined_characters.append(num_char)
-        else:
-            box_ = boxes[word_id[i]]
-            word_crop_ = warp_image(box_)
-            text_crops.append(combine_images(word_crop, word_crop_))
-            num_char_ = num_characters[i]
-            num_combined_characters.append(num_char+num_char_)
-    return_dict["text_crops"] = text_crops
-    return_dict["num_combined_characters"] = num_combined_characters
     return return_dict
 
 
