@@ -57,9 +57,10 @@ def multiline_crops(boxes, image, num_characters, word_id):
     num_combined_characters = []
     for i, (box, num_char)  in enumerate(zip(boxes, num_characters)):
         word_crop = warp_image(box, image)
+        text_crops.append(word_crop)
+        num_combined_characters.append(num_char)
         if word_id[i] == -1:
-            text_crops.append(word_crop)
-            num_combined_characters.append(num_char)
+            pass
         else:
             box_ = boxes[word_id[i]]
             word_crop_ = warp_image(box_, image)
