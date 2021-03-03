@@ -37,6 +37,14 @@ def copyStateDict(state_dict):
 
 
 def load_craftnet_model(cuda: bool = False):
+    '''
+    Loads and returns the craftnet model with the state value as defined in the
+    state dictionary
+    Args:   
+        cuda (bool): if True, to use GPU for compute else cpu
+    Returns
+        A pytorch model object
+    '''
     # get craft net path
     home_path = str(Path.home())
     weight_path = os.path.join(
@@ -70,6 +78,15 @@ def load_craftnet_model(cuda: bool = False):
 
 
 def load_refinenet_model(cuda: bool = False):
+    '''
+    Load a refine net model, the refine net is used to make better
+    heatmaps based on the outputs and intermediate features of craft.
+    It is also trained using the same semisupervised objective function.
+    Args:   
+        cuda (bool): if True, to use GPU for compute else cpu
+    Returns
+        A pytorch model object
+    '''
     # get refine net path
     home_path = str(Path.home())
     weight_path = os.path.join(
@@ -103,16 +120,48 @@ def load_refinenet_model(cuda: bool = False):
 
 
 def getDetBoxes_core(textmap, linkmap, text_threshold, link_threshold, low_text):
+    '''
+    Args:
+        text_map: a 2d np float array containing the probability distribution of a
+            pixel being a character region
+        linkmap: a 2d np float array containing the probability distribution of a
+            pixel being an inter character spacing 
+        text_threshold: text confidence threshold
+        link_threshold: link confidence threshold
+        low_text: text low-bound score
+    Output:
+        det: a list of predicted boxes
+        labels: a list of keys of each signle line word segmentation
+        mapper: a map between the detected boxes and all possible labels in the heatmaps
+        num_characters: estimate of number of characters in each single line text crop
+        avg_character_sizes: average size of characters in the text crops
+        word_id: next text crop adjacency vector, -1 when for a given crop index has no consecutive
+            multiline text element, equal to the next line text crop index when it has one.
+        
+    '''
     def compare_boxes(box1, box2, slope_thresh = 0.1, min_edge_distance = 10):
         '''
-        Given 2 4X2 numpy array containing [[x,y]..] points returns True if they are next to each other else zero 
+        Given 2 4X2 numpy array containing [[x,y]..] points
+        Returns True if they are next to each other else False
+        Args:
+            box1 (np.ndarray): a 4X2 nummy float32 array containing the 4 coordinates in 
+                TL->TR->BR->BL sequence in (x,y) order, This box is assumed to be the one on top.
+            box2 (np.ndarray): a 4X2 nummy float32 array containing the 4 coordinates in 
+                TL->TR->BR->BL sequence in (x,y) order, This box is assumed to be the one at the bottom.
+            slope_thresh (float): minimum difference between any 2 edges to be considered parallell
+            min_edge_distance (float): minimum distance between the mid points of any 2 edges to be
+                considered adjacent/overlapping/"intersecting"
+            
         '''
         boxcentroid1 = np.mean(box1, axis=0)
         boxcentroid2 = np.mean(box2, axis=0)
         
+        # check if box1 is above box2 spatially
         if boxcentroid1[1] < boxcentroid2[1]:
             for i, j in permutations(range(4), 2):
                 for k,l in permutations(range(4), 2):
+                    # compute slope and mid points of any 2 edges
+                    #  and compare their differences 
                     slope1 = (box1[i, 1]-box1[j, 1])/(box2[i, 0]-box2[j, 0]\
                         if (box2[i, 0]-box2[j, 0]) != 0 else 0.001)
                     slope2 = (box1[k, 1]-box1[l, 1])/(box2[k, 0]-box2[l, 0]\
@@ -134,16 +183,11 @@ def getDetBoxes_core(textmap, linkmap, text_threshold, link_threshold, low_text)
         '''
         Returns the bounding box sorted with BL->BR->TR->TL sequence
         given a 2d 4X2 list of vertices of a cyclic bbox
-        '''
-        '''
-        x1, y1 = tuple(box[0, :])
-        x2, y2 = tuple(box[1, :])
-        x3, y3 = tuple(box[2, :])
-
-        if ((x2-x1)*(y3-y1) + (y1-y2)*(x3 - x1)) < 0:
-            box.reverse()
-        else:   
-            pass
+        Args (np.ndarray): a 4X2 np float32 array with the coordinated 
+            of the text quadrilateral in cyclic order
+        Returns:
+            a 4X2 np float32 array with the coordinates sorted in
+            TL->TR->BR->BL sequence
         '''
         aymin = np.argmin(box[:,1])
         tl=0 
@@ -439,6 +483,18 @@ def getDetBoxes(textmap, linkmap, text_threshold, link_threshold, low_text, poly
     boxes, labels, mapper, num_characters, avg_character_size, word_id = getDetBoxes_core(
         textmap, linkmap, text_threshold, link_threshold, low_text
     )
+    '''
+    Returns the detection boxes and predictions of CRAFT as a dictionary
+    Args:
+        text_map: a 2d np float array containing the probability distribution of a
+            pixel being a character region
+        linkmap: a 2d np float array containing the probability distribution of a
+            pixel being an inter character spacing 
+        text_threshold: text confidence threshold
+        link_threshold: link confidence threshold
+        low_text: text low-bound score
+        poly (bool): whether to return the polyline seg or not  
+    '''
     if poly:
         polys = getPoly_core(boxes, labels, mapper, linkmap)
     else:
