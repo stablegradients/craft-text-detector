@@ -7,15 +7,7 @@ import cv2
 import numpy as np
 
 
-def read_image(img_file):
-    img = cv2.imread(img_file)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    # following two cases are not explained in the original repo
-    if img.shape[0] == 2:
-        img = img[0]
-    if img.shape[2] == 4:
-        img = img[:, :, :3]
-
+def read_image(img):
     return img
 
 
