@@ -32,7 +32,6 @@ empty_cuda_cache = torch_utils.empty_cuda_cache
 class Craft:
     def __init__(
         self,
-        output_dir=None,
         rectify=True,
         export_extra=True,
         text_threshold=0.7,
@@ -46,7 +45,6 @@ class Craft:
         """
         Arguments:
             image_path: path to the image to be processed
-            output_dir: path to the results to be exported
             rectify: rectify detected polygon by affine transform
             export_extra: export heatmap, detection points, box visualization
             text_threshold: text confidence threshold
@@ -59,7 +57,6 @@ class Craft:
         """
         self.craft_net = None
         self.refine_net = None
-        self.output_dir = output_dir
         self.rectify = rectify
         self.export_extra = export_extra
         self.text_threshold = text_threshold
@@ -102,7 +99,7 @@ class Craft:
         self.refine_net = None
         empty_cuda_cache()
 
-    def detect_text(self, image_path):
+    def detect_text(self, image):
         """
         Arguments:
             image_path: path to the image to be processed
@@ -115,9 +112,7 @@ class Craft:
             "text_crop_paths": list of paths of the exported text boxes/polys,
             "times": elapsed times of the sub modules, in seconds}
         """
-        # load image
-        image = read_image(image_path)
-
+        
         # perform prediction
         prediction_result = get_prediction(
             image=image,
@@ -137,29 +132,6 @@ class Craft:
             regions = prediction_result["polys"]
         else:
             raise TypeError("crop_type can be only 'polys' or 'boxes'")
-
-        # export if output_dir is given
-        prediction_result["text_crop_paths"] = []
-        if self.output_dir is not None:
-            # export detected text regions
-            exported_file_paths = export_detected_regions(
-                image_path=image_path,
-                image=image,
-                regions=regions,
-                output_dir=self.output_dir,
-                rectify=self.rectify,
-            )
-            prediction_result["text_crop_paths"] = exported_file_paths
-
-            # export heatmap, detection points, box visualization
-            if self.export_extra:
-                export_extra_results(
-                    image_path=image_path,
-                    image=image,
-                    regions=regions,
-                    heatmaps=prediction_result["heatmaps"],
-                    output_dir=self.output_dir,
-                )
 
         # return prediction results
         return prediction_result

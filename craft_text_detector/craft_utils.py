@@ -286,7 +286,7 @@ def getDetBoxes_core(textmap, linkmap, text_threshold, link_threshold, low_text)
             if id1 == id2:
                 pass
             else:
-                if compare_boxes(box1, box2):
+                if compare_boxes(box1=box1, box2=box2, min_edge_distance=30):
                     word_id[id1] = id2
     return det, labels, mapper, num_characters, avg_character_sizes, word_id
 
