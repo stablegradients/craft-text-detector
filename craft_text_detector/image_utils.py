@@ -8,6 +8,23 @@ import numpy as np
 
 
 def read_image(img):
+    if type(image) == str:
+        img = cv2.imread(image)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+    elif type(image) == bytes:
+        nparr = np.frombuffer(image, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+    elif type(image) == np.ndarray:
+        if len(image.shape) == 2:  # grayscale
+            img = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+        elif len(image.shape) == 3 and image.shape[2] == 3:  # BGRscale
+            img = image
+        elif len(image.shape) == 3 and image.shape[2] == 4:  # RGBAscale
+            img = image[:, :, :3]
+            img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
     return img
 
 
