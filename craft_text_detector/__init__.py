@@ -99,7 +99,7 @@ class Craft:
         self.refine_net = None
         empty_cuda_cache()
 
-    def detect_text(self, image):
+    def detect_text(self, image, long_size=None):
         """
         Arguments:
             image_path: path to the image to be processed
@@ -112,7 +112,8 @@ class Craft:
             "text_crop_paths": list of paths of the exported text boxes/polys,
             "times": elapsed times of the sub modules, in seconds}
         """
-        
+        if not long_size:
+            long_size = self.long_size
         # perform prediction
         prediction_result = get_prediction(
             image=image,
